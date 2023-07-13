@@ -5,7 +5,7 @@ library(synapserutils)
 library(rjson)
 
 synapser::synLogin(authToken = Sys.getenv('SYNAPSE_AUTH_TOKEN'))
-source('~/recover-s3-synindex/sts_process_params.R')
+source('~/recover-sts-synindex/sts_process_params.R')
 
 SCRIPT_PROCESS <- 'sts_synindex'
 PARQUET_BUCKET <- 'recover-processed-data'
