@@ -32,23 +32,21 @@ Note: If you are having issues during installation of the Synapse CLI client, co
 5. Please follow the instructions to [Create a Synapse personal access token (for AWS SSM Access)](https://sagebionetworks.jira.com/wiki/spaces/SC/pages/938836322/Service+Catalog+Provisioning#Create-a-Synapse-personal-access-token) 
 6. Please follow instructions 3-5 to set up [SSM Access to an Instance](https://sagebionetworks.jira.com/wiki/spaces/SC/pages/938836322/Service+Catalog+Provisioning#SSM-access-to-an-Instance). (Note: AWS CLI version that is installed on the EC2 offering is ver 2.x)
 
-Note: After setting this step, you should be able to run data_sync.R, i.e be able to sync data between two buckets, and also from a bucket to the local EC2 instance.
-
 #### Clone the repo and install required R libraries
 
 7. Clone this repository and switch to the new project
-8. Modify the parameters in [params.R](params.R)
+8. Modify the parameters in [sts_params.R](sts_params.R)
 9. Run [install_requirements.R](install_requirements.R)
 10. Start a new R session (type `q()` in the R console)
 
 #### Run the ingress pipeline
-10. Run [ingress_pipeline.sh](ingress_pipeline.sh) in the terminal using the command `bash ~/<path to>/ingress_pipeline.sh`
-11. Set up [ingress_pipeline.sh](ingress_pipeline.sh) on a cronjob of your required frequency
+10. Run [sts_synindex.R](sts_synindex.R)
+11. Set up [ingress_pipeline.sh](ingress_pipeline.sh) as a job to run at your required frequency
 
 ### Method 2: Running with Docker
 
-1. Pull the docker image with `docker pull ghcr.io/sage-bionetworks/recover-s3-synindex`
+1. Pull the docker image with `docker pull ghcr.io/sage-bionetworks/recover-sts-synindex`
 2. Run a container with `docker run -e AWS_TOKEN=<aws-cli-token> -e SYNAPSE_AUTH_TOKEN=<synapse-auth-token> <image-name>`
-3. If desired, setup a scheduled job (AWS Scheduled Jobs, cron, etc.) using the docker image (ghcr.io/sage-bionetworks/recover-s3-synindex) to run the pipeline at your desired frequency
+3. If desired, setup a scheduled job (AWS Scheduled Jobs, cron, etc.) using the docker image (ghcr.io/sage-bionetworks/recover-sts-synindex) to run the pipeline at your desired frequency
 
 Note: Replace `<aws-cli-token>` and `<synapse-auth-token>` with the actual token values. When provisioning a Scheduled Job, `<aws-cli-token>` and `<synapse-auth-token>` should be specified in the `Secrets` and/or `EnvVars` fields of the provisioning settings page.
