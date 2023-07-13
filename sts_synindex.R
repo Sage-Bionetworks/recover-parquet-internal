@@ -1,7 +1,6 @@
 library(synapser)
 library(arrow)
 library(dplyr)
-library(tidyverse)
 library(synapserutils)
 library(rjson)
 
