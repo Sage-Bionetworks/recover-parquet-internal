@@ -5,8 +5,8 @@ RUN apt-get update -y && apt-get upgrade -y && apt-get install -y python3 python
 RUN python3 -m pip install --upgrade pip
 RUN pip install synapseclient
 
-RUN git clone -b update-docker-pipeline https://github.com/pranavanba/recover-s3-synindex /root/recover-s3-synindex
-RUN Rscript /root/recover-s3-synindex/install_requirements.R
+RUN git clone https://github.com/pranavanba/recover-sts-synindex.git /root/recover-sts-synindex
+RUN Rscript /root/recover-sts-synindex/install_requirements.R
 
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
     && unzip awscliv2.zip \
@@ -28,8 +28,5 @@ RUN sed -i -e "s|\"<PERSONAL_ACCESS_TOKEN>\"|\"\${AWS_SYNAPSE_TOKEN}\"\n|g" \
 
 CMD R -e "q()" \
     && sed -i -e "s|\${AWS_SYNAPSE_TOKEN}|$AWS_SYNAPSE_TOKEN|g"\
-    -e "s|{{AWS_ACCESS_KEY_ID}}|$AWS_ACCESS_KEY_ID|g" \
-    -e "s|{{AWS_SECRET_ACCESS_KEY}}|$AWS_SECRET_ACCESS_KEY|g" \
-    -e "s|{{AWS_SESSION_TOKEN}}|$AWS_SESSION_TOKEN|g" \
     /root/.aws/config \
-    && Rscript ~/recover-s3-synindex/data_sync.R
+    && Rscript /root/recover-sts-synindex/sts_synindex.R
