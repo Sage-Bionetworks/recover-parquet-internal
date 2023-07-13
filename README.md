@@ -1,7 +1,9 @@
-# recover-s3-synindex
+# recover-sts-synindex
+
+[![Build and publish a Docker image](https://github.com/pranavanba/recover-sts-synindex/actions/workflows/docker-build.yml/badge.svg)](https://github.com/pranavanba/recover-sts-synindex/actions/workflows/docker-build.yml)
 
 ## Purpose
-This repository helps index S3 objects in Synapse from a S3 bucket attached to a Synapse project/folder. The code is written in R and offers two methods for running the pipeline:
+This repository hosts code for the pipeline that indexes files from S3 storage in a Synapse project/folder using the STS process. The code is written in R and offers two methods for running the pipeline:
 
 1. Executing the code in an R environment, e.g., RStudio in an EC2 instance (see [Method 1: Running in an R Environment](#method-1-running-in-an-r-environment))
 2. Running the pipeline using a Docker container for easy setup and portability (see [Method 2: Running with Docker](#method-2-running-with-docker))
@@ -9,7 +11,7 @@ This repository helps index S3 objects in Synapse from a S3 bucket attached to a
 ## Prerequisites
 
 - Synapse account with relevant access permissions
-- Synapse authentication token
+- Synapse authentication tokens
 
 A Synapse authentication token is required for use of the Synapse APIs and CLI client. For help with Synapse, Synapse APIs, Synapse authentication tokens, etc., please refer to the [Synapse documentation](https://help.synapse.org/docs/).
 
