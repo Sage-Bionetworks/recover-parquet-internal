@@ -1,46 +1,64 @@
-################################
-## Index S3 Objects in Synapse
-################################
-
-## First run data_sync.R and generate_manifest.R in that order, before executing code below
-
-#############
-### Synapse credentials
-#############
-# Set the environment variables .Renviron file in your home folder. Refer to README for more details
-SYNAPSE_AUTH_TOKEN = Sys.getenv('SYNAPSE_AUTH_TOKEN')
-
-#############
-# Required functions and libraries
-#############
-library(tidyverse)
 library(synapser)
+library(arrow)
+library(dplyr)
+library(tidyverse)
 library(synapserutils)
 library(rjson)
-synapser::synLogin(authToken=SYNAPSE_AUTH_TOKEN)
+
+synapser::synLogin(authToken = Sys.getenv('SYNAPSE_AUTH_TOKEN'))
 source('~/recover-s3-synindex/awscli_utils.R')
+source('~/recover-s3-synindex/sts_process_params.R')
 
-#############
-# Required Parameters
-#############
-source('~/recover-s3-synindex/params.R')
+SCRIPT_PROCESS <- 'sts_synindex'
+PARQUET_BUCKET <- 'recover-processed-data'
+PARQUET_BUCKET_BASE_KEY <- 'main/parquet/'
+PARQUET_FOLDER <- "syn51406699"
+AWS_PARQUET_DOWNLOAD_LOCATION <- './temp_aws_parquet/'
+SYNAPSE_PARENT_ID <- 'syn51406699'
 
-###########
+#### Get STS token for bucket in order to sync to local dir ####
+
+# Get STS credentials
+token <- synapser::synGetStsStorageToken(
+  entity = PARQUET_FOLDER,
+  permission = "read_only",
+  output_format = "json")
+
+if (PARQUET_BUCKET==token$bucket && PARQUET_BUCKET_BASE_KEY==token$baseKey) {
+  base_s3_uri <- paste0('s3://', token$bucket, '/', token$baseKey)
+} else {
+  base_s3_uri <- paste0('s3://', PARQUET_BUCKET, '/', PARQUET_BUCKET_BASE_KEY)
+}
+
+# configure the environment with AWS token
+Sys.setenv('AWS_ACCESS_KEY_ID'=token$accessKeyId,
+           'AWS_SECRET_ACCESS_KEY'=token$secretAccessKey,
+           'AWS_SESSION_TOKEN'=token$sessionToken)
+
+sync_cmd <- glue::glue('aws s3 sync {base_s3_uri} {AWS_PARQUET_DOWNLOAD_LOCATION} --exclude "*owner.txt*" --exclude "*archive*"')
+system(sync_cmd)
+
+SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
+manifest_cmd <- glue::glue('SYNAPSE_AUTH_TOKEN="{SYNAPSE_AUTH_TOKEN}" synapse manifest --parent-id {SYNAPSE_PARENT_ID} --manifest ./current_manifest.tsv {AWS_PARQUET_DOWNLOAD_LOCATION}')
+system(manifest_cmd)
+
+#### Index S3 Objects in Synapse ####
+SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
+
 ## Get a list of all files to upload and their synapse locations(parentId) 
-###########
-STR_LEN_AWS_DOWNLOAD_LOCATION = stringr::str_length(AWS_DOWNLOAD_LOCATION)
+STR_LEN_AWS_DOWNLOAD_LOCATION <- stringr::str_length(AWS_DOWNLOAD_LOCATION)
 
 ## All files present locally from manifest
 synapse_manifest <- read.csv('./current_manifest.tsv', sep = '\t', stringsAsFactors = F) %>% 
   dplyr::filter(path != paste0(AWS_DOWNLOAD_LOCATION,'owner.txt')) %>%  # need not create a dataFileHandleId for owner.txt
   dplyr::rowwise() %>% 
   dplyr::mutate(file_key = stringr::str_sub(string = path, start = STR_LEN_AWS_DOWNLOAD_LOCATION+1)) %>% # location of file from home folder of S3 bucket
-  dplyr::mutate(s3_file_key = paste0('main/', file_key)) %>% # the namespace for files in the S3 bucket is S3::bucket/main/
+  dplyr::mutate(s3_file_key = paste0('main/parquet/', file_key)) %>% # the namespace for files in the S3 bucket is S3::bucket/main/
   dplyr::mutate(md5_hash = as.character(tools::md5sum(path))) %>% 
   dplyr::ungroup()
 
 ## All currently indexed files in Synapse
-synapse_fileview <- synapser::synTableQuery(paste0('SELECT * FROM ', SYNAPSE_FILEVIEW_ID))$asDataFrame()
+synapse_fileview <- synapser::synTableQuery(paste0('SELECT * FROM ', SYNAPSE_FILEVIEW_ID))$filepath %>% read.csv()
 
 ## find those files that are not in the fileview - files that need to be indexed
 synapse_manifest_to_upload <- synapse_manifest %>% 
@@ -49,9 +67,7 @@ synapse_manifest_to_upload <- synapse_manifest %>%
                                    s3_file_key = dataFileKey,
                                    md5_hash = dataFileMD5Hex))
 
-#############
-# Index in Synapse
-#############
+## Index in Synapse
 ## For each file index it in Synapse given a parent synapse folder
 if(nrow(synapse_manifest_to_upload) > 0){ # there are some files to upload
   for(file_number in seq(nrow(synapse_manifest_to_upload))){
@@ -65,7 +81,7 @@ if(nrow(synapse_manifest_to_upload) > 0){ # there are some files to upload
     absolute_file_path <- tools::file_path_as_absolute(file_) # local absolute path
     
     temp_syn_obj <- synapser::synCreateExternalS3FileHandle(
-      bucket_name = PRE_ETL_BUCKET,
+      bucket_name = PARQUET_BUCKET,
       s3_file_key = s3_file_key, #
       file_path = absolute_file_path,
       parent = parent_id
@@ -82,5 +98,3 @@ if(nrow(synapse_manifest_to_upload) > 0){ # there are some files to upload
     
   }
 }
-
-

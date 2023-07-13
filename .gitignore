@@ -37,3 +37,8 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+*.Rproj
+
+# Misc files and dirs
+temp_aws_parquet
+*manifest*
