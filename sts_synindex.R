@@ -5,7 +5,6 @@ library(synapserutils)
 library(rjson)
 
 synapser::synLogin(authToken = Sys.getenv('SYNAPSE_AUTH_TOKEN'))
-source('~/recover-s3-synindex/awscli_utils.R')
 source('~/recover-s3-synindex/sts_process_params.R')
 
 SCRIPT_PROCESS <- 'sts_synindex'
