@@ -35,18 +35,18 @@ Note: If you are having issues during installation of the Synapse CLI client, co
 #### Clone the repo and install required R libraries
 
 7. Clone this repository and switch to the new project
-8. Modify the parameters in [sts_params.R](sts_params.R)
+8. Modify the parameters in [sts_process_params.R](sts_process_params.R)
 9. Run [install_requirements.R](install_requirements.R)
 10. Start a new R session (type `q()` in the R console)
 
 #### Run the ingress pipeline
 10. Run [sts_synindex.R](sts_synindex.R)
-11. Set up [ingress_pipeline.sh](ingress_pipeline.sh) as a job to run at your required frequency
+11. Set up a job to run [sts_synindex.R](sts_synindex.R) at your required frequency
 
 ### Method 2: Running with Docker
 
-1. Pull the docker image with `docker pull ghcr.io/sage-bionetworks/recover-sts-synindex`
+1. Pull the docker image with `docker pull ghcr.io/sage-bionetworks/recover-sts-synindex:main`
 2. Run a container with `docker run -e AWS_TOKEN=<aws-cli-token> -e SYNAPSE_AUTH_TOKEN=<synapse-auth-token> <image-name>`
-3. If desired, setup a scheduled job (AWS Scheduled Jobs, cron, etc.) using the docker image (ghcr.io/sage-bionetworks/recover-sts-synindex) to run the pipeline at your desired frequency
+3. If desired, setup a scheduled job (AWS Scheduled Jobs, cron, etc.) using the docker image (ghcr.io/sage-bionetworks/recover-sts-synindex:main) to run the pipeline at your desired frequency
 
 Note: Replace `<aws-cli-token>` and `<synapse-auth-token>` with the actual token values. When provisioning a Scheduled Job, `<aws-cli-token>` and `<synapse-auth-token>` should be specified in the `Secrets` and/or `EnvVars` fields of the provisioning settings page.
