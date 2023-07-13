@@ -12,7 +12,7 @@ on:
   pull_request:
     branches:
       - 'main'
-workflow_dispatch: # Add manual trigger event
+  workflow_dispatch: # Add manual trigger event
 
 env:
   REGISTRY: ghcr.io
