@@ -11,7 +11,7 @@ SCRIPT_PROCESS <- 'sts_synindex'
 PARQUET_BUCKET <- 'recover-processed-data'
 PARQUET_BUCKET_BASE_KEY <- 'main/parquet/'
 PARQUET_FOLDER <- "syn51406699"
-AWS_PARQUET_DOWNLOAD_LOCATION <- './temp_aws_parquet/'
+AWS_PARQUET_DOWNLOAD_LOCATION <- './temp_aws_parquet'
 SYNAPSE_PARENT_ID <- 'syn51406699'
 
 #### Get STS token for bucket in order to sync to local dir ####
@@ -33,12 +33,44 @@ Sys.setenv('AWS_ACCESS_KEY_ID'=token$accessKeyId,
            'AWS_SECRET_ACCESS_KEY'=token$secretAccessKey,
            'AWS_SESSION_TOKEN'=token$sessionToken)
 
+#### Sync bucket to local dir and generate manifest####
 sync_cmd <- glue::glue('aws s3 sync {base_s3_uri} {AWS_PARQUET_DOWNLOAD_LOCATION} --exclude "*owner.txt*" --exclude "*archive*"')
 system(sync_cmd)
 
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
 manifest_cmd <- glue::glue('SYNAPSE_AUTH_TOKEN="{SYNAPSE_AUTH_TOKEN}" synapse manifest --parent-id {SYNAPSE_PARENT_ID} --manifest ./current_manifest.tsv {AWS_PARQUET_DOWNLOAD_LOCATION}')
 system(manifest_cmd)
+
+#### Drop columns with potentially identifying info ####
+datasets_to_filter <- c("./temp_aws_parquet/dataset_enrolledparticipants", 
+                        "./temp_aws_parquet/dataset_enrolledparticipants_customfields_symptoms", 
+                        "./temp_aws_parquet/dataset_enrolledparticipants_customfields_treatments", 
+                        "./temp_aws_parquet/dataset_healthkitv2heartbeat", 
+                        "./temp_aws_parquet/dataset_healthkitv2samples", 
+                        "./temp_aws_parquet/dataset_healthkitv2workouts", 
+                        "./temp_aws_parquet/dataset_symptomlog")
+
+cols_to_drop <- list(c("EmailAddress", "DateOfBirth", "CustomFields_DeviceOrderInfo", "FirstName", "LastName", "PostalCode", "MiddleName"),
+                     c("name"),
+                     c("name"),
+                     c("Source_Name"),
+                     c("Source_Name", "Device_Name"),
+                     c("Source_Name", "Metadata_HKWorkoutBrandName", "Metadata_Coach", "Metadata_trackerMetadata", "Metadata_SWMetadataKeyCustomWorkoutTitle", "Metadata_location"),
+                     c("Value_notes", "Properties"))
+
+drop_cols_datasets <- function(dataset, columns=c(), output='./parquet_filtered') {
+  if (dataset %in% list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION)) {
+    final_path <- paste0(output, '/', basename(dataset), '/')
+    
+    arrow::open_dataset(sources = dataset) %>% 
+      dplyr::select(!columns) %>% 
+      arrow::write_dataset(path = final_path)
+  }
+}
+
+lapply(seq_along(datasets_to_filter), function(i) {
+  drop_cols_datasets(dataset = datasets_to_filter[i], columns = cols_to_drop[[i]])
+})
 
 #### Index S3 Objects in Synapse ####
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
