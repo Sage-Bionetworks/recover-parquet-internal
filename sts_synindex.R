@@ -64,13 +64,16 @@ drop_cols_datasets <- function(dataset, columns=c(), output='./parquet_filtered'
     
     arrow::open_dataset(sources = dataset) %>% 
       dplyr::select(!columns) %>% 
-      arrow::write_dataset(path = final_path)
+      arrow::write_dataset(path = final_path, max_rows_per_file = 900000)
   }
 }
 
 lapply(seq_along(datasets_to_filter), function(i) {
+  cat("Dropping ", cols_to_drop[[i]], " from ", datasets_to_filter[i], "\n")
   drop_cols_datasets(dataset = datasets_to_filter[i], columns = cols_to_drop[[i]])
 })
+
+
 
 #### Index S3 Objects in Synapse ####
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
