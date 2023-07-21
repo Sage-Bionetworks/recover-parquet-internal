@@ -58,7 +58,9 @@ cols_to_drop <- list(c("EmailAddress", "DateOfBirth", "CustomFields_DeviceOrderI
                      c("Source_Name", "Metadata_HKWorkoutBrandName", "Metadata_Coach", "Metadata_trackerMetadata", "Metadata_SWMetadataKeyCustomWorkoutTitle", "Metadata_location"),
                      c("Value_notes", "Properties"))
 
-drop_cols_datasets <- function(dataset, columns=c(), output='./parquet_filtered') {
+PARQUET_FILTERED_LOCATION <- './parquet_filtered'
+
+drop_cols_datasets <- function(dataset, columns=c(), output=PARQUET_FILTERED_LOCATION) {
   if (dataset %in% list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION)) {
     final_path <- paste0(output, '/', basename(dataset), '/')
     
@@ -73,7 +75,54 @@ lapply(seq_along(datasets_to_filter), function(i) {
   drop_cols_datasets(dataset = datasets_to_filter[i], columns = cols_to_drop[[i]])
 })
 
+### Copy unfiltered parquet datasets to new location with filtered parquet datasets ####
+duplicate_folder <- function(source_folder, destination_folder) {
+  if (dir.exists(source_folder)) {
+    if (!dir.exists(destination_folder)) {
+      dir.create(destination_folder)
+    } else {
+      warning("Destination folder already exists. Files might be overwritten.")
+    }
+    
+    source_contents <- list.files(source_folder, full.names = TRUE)
+    
+    file.copy(source_contents, destination_folder, recursive = TRUE, overwrite = TRUE)
+    
+    return(destination_folder)
+  } else {
+    stop("Source folder does not exist.")
+  }
+}
 
+PARQUET_FINAL_LOCATION <- './parquet_filtered_final'
+
+duplicate_folder(source_folder = PARQUET_FILTERED_LOCATION, 
+                 destination_folder = PARQUET_FINAL_LOCATION)
+
+copy_folders_reparent <- function(src_folder, dest_folder) {
+  folders_to_copy <- list.dirs(src_folder, recursive = FALSE, full.names = TRUE)
+  
+  for (folder in folders_to_copy) {
+    folder_name <- basename(folder)
+    folder2_subfolder <- file.path(dest_folder, folder_name)
+    
+    if (!dir.exists(folder2_subfolder)) {
+      # Create the target folder with the new structure directly
+      dir.create(folder2_subfolder, recursive = TRUE)
+      
+      # Copy files to the new folder structure
+      files_to_copy <- list.files(folder, full.names = TRUE, recursive = TRUE)
+      target_paths <- file.path(folder2_subfolder, basename(files_to_copy))
+      file.copy(files_to_copy, target_paths)
+      
+      print(paste("Copied:", folder_name))
+    } else {
+      print(paste("Skipped:", folder_name, "(Folder already exists in", folder2_subfolder, ")"))
+    }
+  }
+}
+
+copy_folders_reparent(AWS_PARQUET_DOWNLOAD_LOCATION, PARQUET_FINAL_LOCATION)
 
 #### Index S3 Objects in Synapse ####
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
