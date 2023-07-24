@@ -7,13 +7,6 @@ library(rjson)
 synapser::synLogin(authToken = Sys.getenv('SYNAPSE_AUTH_TOKEN'))
 source('~/recover-sts-synindex/sts_process_params.R')
 
-SCRIPT_PROCESS <- 'sts_synindex'
-PARQUET_BUCKET <- 'recover-processed-data'
-PARQUET_BUCKET_BASE_KEY <- 'main/parquet/'
-PARQUET_FOLDER <- "syn51406699"
-AWS_PARQUET_DOWNLOAD_LOCATION <- './temp_aws_parquet'
-SYNAPSE_PARENT_ID <- 'syn51406699'
-
 #### Get STS token for bucket in order to sync to local dir ####
 
 # Get STS credentials
@@ -33,33 +26,11 @@ Sys.setenv('AWS_ACCESS_KEY_ID'=token$accessKeyId,
            'AWS_SECRET_ACCESS_KEY'=token$secretAccessKey,
            'AWS_SESSION_TOKEN'=token$sessionToken)
 
-#### Sync bucket to local dir and generate manifest####
+#### Sync bucket to local dir####
 sync_cmd <- glue::glue('aws s3 sync {base_s3_uri} {AWS_PARQUET_DOWNLOAD_LOCATION} --exclude "*owner.txt*" --exclude "*archive*"')
 system(sync_cmd)
 
-SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
-manifest_cmd <- glue::glue('SYNAPSE_AUTH_TOKEN="{SYNAPSE_AUTH_TOKEN}" synapse manifest --parent-id {SYNAPSE_PARENT_ID} --manifest ./current_manifest.tsv {AWS_PARQUET_DOWNLOAD_LOCATION}')
-system(manifest_cmd)
-
 #### Drop columns with potentially identifying info ####
-datasets_to_filter <- c("./temp_aws_parquet/dataset_enrolledparticipants", 
-                        "./temp_aws_parquet/dataset_enrolledparticipants_customfields_symptoms", 
-                        "./temp_aws_parquet/dataset_enrolledparticipants_customfields_treatments", 
-                        "./temp_aws_parquet/dataset_healthkitv2heartbeat", 
-                        "./temp_aws_parquet/dataset_healthkitv2samples", 
-                        "./temp_aws_parquet/dataset_healthkitv2workouts", 
-                        "./temp_aws_parquet/dataset_symptomlog")
-
-cols_to_drop <- list(c("EmailAddress", "DateOfBirth", "CustomFields_DeviceOrderInfo", "FirstName", "LastName", "PostalCode", "MiddleName"),
-                     c("name"),
-                     c("name"),
-                     c("Source_Name"),
-                     c("Source_Name", "Device_Name"),
-                     c("Source_Name", "Metadata_HKWorkoutBrandName", "Metadata_Coach", "Metadata_trackerMetadata", "Metadata_SWMetadataKeyCustomWorkoutTitle", "Metadata_location"),
-                     c("Value_notes", "Properties"))
-
-PARQUET_FILTERED_LOCATION <- './parquet_filtered'
-
 drop_cols_datasets <- function(dataset, columns=c(), output=PARQUET_FILTERED_LOCATION) {
   if (dataset %in% list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION)) {
     final_path <- paste0(output, '/', basename(dataset), '/')
@@ -94,8 +65,6 @@ duplicate_folder <- function(source_folder, destination_folder) {
   }
 }
 
-PARQUET_FINAL_LOCATION <- './parquet_filtered_final'
-
 duplicate_folder(source_folder = PARQUET_FILTERED_LOCATION, 
                  destination_folder = PARQUET_FINAL_LOCATION)
 
@@ -125,16 +94,20 @@ copy_folders_reparent <- function(src_folder, dest_folder) {
 copy_folders_reparent(AWS_PARQUET_DOWNLOAD_LOCATION, PARQUET_FINAL_LOCATION)
 
 #### Index S3 Objects in Synapse ####
+
+# Generate manifest of existing files
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
+manifest_cmd <- glue::glue('SYNAPSE_AUTH_TOKEN="{SYNAPSE_AUTH_TOKEN}" synapse manifest --parent-id {SYNAPSE_PARENT_ID} --manifest ./current_manifest.tsv {PARQUET_FINAL_LOCATION}')
+system(manifest_cmd)
 
 ## Get a list of all files to upload and their synapse locations(parentId) 
-STR_LEN_AWS_DOWNLOAD_LOCATION <- stringr::str_length(AWS_DOWNLOAD_LOCATION)
+STR_LEN_PARQUET_FINAL_LOCATION <- stringr::str_length(PARQUET_FINAL_LOCATION)
 
 ## All files present locally from manifest
 synapse_manifest <- read.csv('./current_manifest.tsv', sep = '\t', stringsAsFactors = F) %>% 
-  dplyr::filter(path != paste0(AWS_DOWNLOAD_LOCATION,'owner.txt')) %>%  # need not create a dataFileHandleId for owner.txt
+  dplyr::filter(path != paste0(PARQUET_FINAL_LOCATION,'/owner.txt')) %>%  # need not create a dataFileHandleId for owner.txt
   dplyr::rowwise() %>% 
-  dplyr::mutate(file_key = stringr::str_sub(string = path, start = STR_LEN_AWS_DOWNLOAD_LOCATION+1)) %>% # location of file from home folder of S3 bucket
+  dplyr::mutate(file_key = stringr::str_sub(string = path, start = STR_LEN_PARQUET_FINAL_LOCATION+2)) %>% # location of file from home folder of S3 bucket
   dplyr::mutate(s3_file_key = paste0('main/parquet/', file_key)) %>% # the namespace for files in the S3 bucket is S3::bucket/main/
   dplyr::mutate(md5_hash = as.character(tools::md5sum(path))) %>% 
   dplyr::ungroup()
