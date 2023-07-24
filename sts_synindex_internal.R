@@ -5,7 +5,7 @@ library(synapserutils)
 library(rjson)
 
 synapser::synLogin(authToken = Sys.getenv('SYNAPSE_AUTH_TOKEN'))
-source('~/recover-sts-synindex/sts_process_params.R')
+source('~/recover-sts-synindex/sts_params_internal.R')
 
 #### Get STS token for bucket in order to sync to local dir ####
 
@@ -30,84 +30,21 @@ Sys.setenv('AWS_ACCESS_KEY_ID'=token$accessKeyId,
 sync_cmd <- glue::glue('aws s3 sync {base_s3_uri} {AWS_PARQUET_DOWNLOAD_LOCATION} --exclude "*owner.txt*" --exclude "*archive*"')
 system(sync_cmd)
 
-#### Drop columns with potentially identifying info ####
-drop_cols_datasets <- function(dataset, columns=c(), output=PARQUET_FILTERED_LOCATION) {
-  if (dataset %in% list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION)) {
-    final_path <- paste0(output, '/', basename(dataset), '/')
-    
-    arrow::open_dataset(sources = dataset) %>% 
-      dplyr::select(!columns) %>% 
-      arrow::write_dataset(path = final_path, max_rows_per_file = 900000)
-  }
-}
-
-lapply(seq_along(datasets_to_filter), function(i) {
-  cat("Dropping ", cols_to_drop[[i]], " from ", datasets_to_filter[i], "\n")
-  drop_cols_datasets(dataset = datasets_to_filter[i], columns = cols_to_drop[[i]])
-})
-
-### Copy unfiltered parquet datasets to new location with filtered parquet datasets ####
-duplicate_folder <- function(source_folder, destination_folder) {
-  if (dir.exists(source_folder)) {
-    if (!dir.exists(destination_folder)) {
-      dir.create(destination_folder)
-    } else {
-      warning("Destination folder already exists. Files might be overwritten.")
-    }
-    
-    source_contents <- list.files(source_folder, full.names = TRUE)
-    
-    file.copy(source_contents, destination_folder, recursive = TRUE, overwrite = TRUE)
-    
-    return(destination_folder)
-  } else {
-    stop("Source folder does not exist.")
-  }
-}
-
-duplicate_folder(source_folder = PARQUET_FILTERED_LOCATION, 
-                 destination_folder = PARQUET_FINAL_LOCATION)
-
-copy_folders_reparent <- function(src_folder, dest_folder) {
-  folders_to_copy <- list.dirs(src_folder, recursive = FALSE, full.names = TRUE)
-  
-  for (folder in folders_to_copy) {
-    folder_name <- basename(folder)
-    folder2_subfolder <- file.path(dest_folder, folder_name)
-    
-    if (!dir.exists(folder2_subfolder)) {
-      # Create the target folder with the new structure directly
-      dir.create(folder2_subfolder, recursive = TRUE)
-      
-      # Copy files to the new folder structure
-      files_to_copy <- list.files(folder, full.names = TRUE, recursive = TRUE)
-      target_paths <- file.path(folder2_subfolder, basename(files_to_copy))
-      file.copy(files_to_copy, target_paths)
-      
-      print(paste("Copied:", folder_name))
-    } else {
-      print(paste("Skipped:", folder_name, "(Folder already exists in", folder2_subfolder, ")"))
-    }
-  }
-}
-
-copy_folders_reparent(AWS_PARQUET_DOWNLOAD_LOCATION, PARQUET_FINAL_LOCATION)
-
 #### Index S3 Objects in Synapse ####
 
 # Generate manifest of existing files
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
-manifest_cmd <- glue::glue('SYNAPSE_AUTH_TOKEN="{SYNAPSE_AUTH_TOKEN}" synapse manifest --parent-id {SYNAPSE_PARENT_ID} --manifest ./current_manifest.tsv {PARQUET_FINAL_LOCATION}')
+manifest_cmd <- glue::glue('SYNAPSE_AUTH_TOKEN="{SYNAPSE_AUTH_TOKEN}" synapse manifest --parent-id {SYNAPSE_PARENT_ID} --manifest ./current_manifest.tsv {AWS_PARQUET_DOWNLOAD_LOCATION}')
 system(manifest_cmd)
 
 ## Get a list of all files to upload and their synapse locations(parentId) 
-STR_LEN_PARQUET_FINAL_LOCATION <- stringr::str_length(PARQUET_FINAL_LOCATION)
+STR_LEN_AWS_PARQUET_DOWNLOAD_LOCATION <- stringr::str_length(AWS_PARQUET_DOWNLOAD_LOCATION)
 
 ## All files present locally from manifest
 synapse_manifest <- read.csv('./current_manifest.tsv', sep = '\t', stringsAsFactors = F) %>% 
-  dplyr::filter(path != paste0(PARQUET_FINAL_LOCATION,'/owner.txt')) %>%  # need not create a dataFileHandleId for owner.txt
+  dplyr::filter(path != paste0(AWS_PARQUET_DOWNLOAD_LOCATION,'/owner.txt')) %>%  # need not create a dataFileHandleId for owner.txt
   dplyr::rowwise() %>% 
-  dplyr::mutate(file_key = stringr::str_sub(string = path, start = STR_LEN_PARQUET_FINAL_LOCATION+2)) %>% # location of file from home folder of S3 bucket
+  dplyr::mutate(file_key = stringr::str_sub(string = path, start = STR_LEN_AWS_PARQUET_DOWNLOAD_LOCATION+2)) %>% # location of file from home folder of S3 bucket
   dplyr::mutate(s3_file_key = paste0('main/parquet/', file_key)) %>% # the namespace for files in the S3 bucket is S3::bucket/main/
   dplyr::mutate(md5_hash = as.character(tools::md5sum(path))) %>% 
   dplyr::ungroup()
@@ -131,7 +68,7 @@ if(nrow(synapse_manifest_to_upload) > 0){ # there are some files to upload
     file_= synapse_manifest_to_upload$path[file_number]
     parent_id = synapse_manifest_to_upload$parent[file_number]
     s3_file_key = synapse_manifest_to_upload$s3_file_key[file_number]
-    # this would be the location of the file in the S3 bucket, in the local it is at {AWS_DOWNLOAD_LOCATION}/
+    # this would be the location of the file in the S3 bucket, in the local it is at {AWS_PARQUET_DOWNLOAD_LOCATION}/
     
     absolute_file_path <- tools::file_path_as_absolute(file_) # local absolute path
     
