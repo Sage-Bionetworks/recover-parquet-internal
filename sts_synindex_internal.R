@@ -27,10 +27,18 @@ Sys.setenv('AWS_ACCESS_KEY_ID'=token$accessKeyId,
            'AWS_SESSION_TOKEN'=token$sessionToken)
 
 #### Sync bucket to local dir####
+unlink(AWS_PARQUET_DOWNLOAD_LOCATION, recursive = T, force = T)
 sync_cmd <- glue::glue('aws s3 sync {base_s3_uri} {AWS_PARQUET_DOWNLOAD_LOCATION} --exclude "*owner.txt*" --exclude "*archive*"')
 system(sync_cmd)
 
 #### Index S3 Objects in Synapse ####
+existing_dirs <- synGetChildren(PARQUET_FOLDER) %>% as.list()
+
+if(length(existing_dirs)>0) {
+  for (i in seq_along(existing_dirs)) {
+    synDelete(existing_dirs[[i]]$id)
+  }
+}
 
 # Generate manifest of existing files
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
@@ -53,11 +61,17 @@ synapse_manifest <- read.csv('./current_manifest.tsv', sep = '\t', stringsAsFact
 synapse_fileview <- synapser::synTableQuery(paste0('SELECT * FROM ', SYNAPSE_FILEVIEW_ID))$filepath %>% read.csv()
 
 ## find those files that are not in the fileview - files that need to be indexed
-synapse_manifest_to_upload <- synapse_manifest %>% 
-  dplyr::anti_join(synapse_fileview %>% 
-                     dplyr::select(parent = parentId,
-                                   s3_file_key = dataFileKey,
-                                   md5_hash = dataFileMD5Hex))
+if (nrow(synapse_fileview)>0) {
+  synapse_manifest_to_upload <- 
+    synapse_manifest %>% 
+    dplyr::anti_join(
+      synapse_fileview %>% 
+        dplyr::select(parent = parentId,
+                      s3_file_key = dataFileKey,
+                      md5_hash = dataFileMD5Hex))
+} else {
+  synapse_manifest_to_upload <- synapse_manifest
+}
 
 ## Index in Synapse
 ## For each file index it in Synapse given a parent synapse folder
