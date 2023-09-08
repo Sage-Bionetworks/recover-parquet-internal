@@ -31,6 +31,17 @@ unlink(AWS_PARQUET_DOWNLOAD_LOCATION, recursive = T, force = T)
 sync_cmd <- glue::glue('aws s3 sync {base_s3_uri} {AWS_PARQUET_DOWNLOAD_LOCATION} --exclude "*owner.txt*" --exclude "*archive*"')
 system(sync_cmd)
 
+# Modify cohort identifier in dir name
+replace_equal_with_underscore <- function(directory_path) {
+  new_directory_path <- gsub("=", "_", directory_path)
+  if (directory_path != new_directory_path) {
+    file.rename(directory_path, new_directory_path)
+    cat("Renamed:", directory_path, "to", new_directory_path, "\n")
+  }
+}
+
+invisible(lapply(list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION), replace_equal_with_underscore))
+
 #### Index S3 Objects in Synapse ####
 existing_dirs <- synGetChildren(PARQUET_FOLDER) %>% as.list()
 
@@ -69,8 +80,15 @@ if (nrow(synapse_fileview)>0) {
         dplyr::select(parent = parentId,
                       s3_file_key = dataFileKey,
                       md5_hash = dataFileMD5Hex))
+  synapse_manifest_to_upload <- 
+    synapse_manifest_to_upload %>% 
+    mutate(file_key = gsub("cohort_", "cohort=", file_key),
+           s3_file_key = gsub("cohort_", "cohort=", s3_file_key))
 } else {
-  synapse_manifest_to_upload <- synapse_manifest
+  synapse_manifest_to_upload <- 
+    synapse_manifest %>% 
+    mutate(file_key = gsub("cohort_", "cohort=", file_key),
+           s3_file_key = gsub("cohort_", "cohort=", s3_file_key))
 }
 
 ## Index in Synapse
