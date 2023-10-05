@@ -5,7 +5,7 @@ RUN apt-get update -y && apt-get upgrade -y && apt-get install -y python3 python
 RUN python3 -m pip install --upgrade pip
 RUN pip install synapseclient
 
-RUN git clone https://github.com/pranavanba/recover-parquet-internal.git /root/recover-parquet-internal
+RUN git clone https://github.com/Sage-Bionetworks/recover-parquet-internal.git /root/recover-parquet-internal
 RUN Rscript /root/recover-parquet-internal/install_requirements.R
 
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
