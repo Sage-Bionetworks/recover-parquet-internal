@@ -1,5 +1,25 @@
 library(magrittr)
 
+# Functions ---------------------------------------------------------------
+
+#' Replace equal sign with underscore
+#'
+#' This function renames a directory path by replacing equal signs with underscores.
+#' If a replacement is performed, it logs the change.
+#'
+#' @param directory_path The path of the directory to rename.
+#'
+#' @examples
+#' replace_equal_with_underscore("path_with=equals")
+#' 
+replace_equal_with_underscore <- function(directory_path) {
+  new_directory_path <- gsub("=", "_", directory_path)
+  if (directory_path != new_directory_path) {
+    file.rename(directory_path, new_directory_path)
+    return(cat("Renamed:", directory_path, "to", new_directory_path, "\n"))
+  }
+}
+
 synapser::synLogin(authToken = Sys.getenv('SYNAPSE_AUTH_TOKEN'))
 source('~/recover-parquet-internal/sts_params_internal.R')
 
@@ -26,15 +46,6 @@ Sys.setenv('AWS_ACCESS_KEY_ID'=token$accessKeyId,
 unlink(AWS_PARQUET_DOWNLOAD_LOCATION, recursive = T, force = T)
 sync_cmd <- glue::glue('aws s3 sync {base_s3_uri} {AWS_PARQUET_DOWNLOAD_LOCATION} --exclude "*owner.txt*" --exclude "*archive*"')
 system(sync_cmd)
-
-# Modify cohort identifier in dir name
-replace_equal_with_underscore <- function(directory_path) {
-  new_directory_path <- gsub("=", "_", directory_path)
-  if (directory_path != new_directory_path) {
-    file.rename(directory_path, new_directory_path)
-    return(cat("Renamed:", directory_path, "to", new_directory_path, "\n"))
-  }
-}
 
 junk <- invisible(lapply(list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION), replace_equal_with_underscore))
 
