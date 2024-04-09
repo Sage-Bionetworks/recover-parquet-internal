@@ -62,6 +62,14 @@ junk <- invisible(lapply(list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION), replace_equal
 
 # Generate manifest of existing files -------------------------------------
 
+existing_dirs <- synapser::synGetChildren(PARQUET_FOLDER) %>% synapser::as.list()
+
+if(length(existing_dirs)>0) {
+  for (i in seq_along(existing_dirs)) {
+    synapser::synDelete(existing_dirs[[i]]$id)
+  }
+}
+
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
 manifest_cmd <- glue::glue('SYNAPSE_AUTH_TOKEN="{SYNAPSE_AUTH_TOKEN}" synapse manifest --parent-id {SYNAPSE_PARENT_ID} --manifest ./current_manifest.tsv {AWS_PARQUET_DOWNLOAD_LOCATION}')
 system(manifest_cmd)
