@@ -5,6 +5,8 @@ PARQUET_BUCKET <- 'recover-processed-data'
 
 PARQUET_BUCKET_BASE_KEY <- 'main/parquet/'
 
+PARQUET_BUCKET_BASE_KEY_ARCHIVE <- 'main/archive/'
+
 PARQUET_FOLDER <- 'syn51406699'
 
 # Local location where parquet bucket files are synced to
