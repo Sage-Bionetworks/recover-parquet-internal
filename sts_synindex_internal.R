@@ -1,8 +1,4 @@
-library(synapser)
-library(arrow)
-library(dplyr)
-library(synapserutils)
-library(rjson)
+library(magrittr)
 
 synapser::synLogin(authToken = Sys.getenv('SYNAPSE_AUTH_TOKEN'))
 source('~/recover-parquet-internal/sts_params_internal.R')
@@ -26,32 +22,21 @@ Sys.setenv('AWS_ACCESS_KEY_ID'=token$accessKeyId,
            'AWS_SECRET_ACCESS_KEY'=token$secretAccessKey,
            'AWS_SESSION_TOKEN'=token$sessionToken)
 
-#### Sync bucket to local dir####
+#### Sync bucket to local dir ####
 unlink(AWS_PARQUET_DOWNLOAD_LOCATION, recursive = T, force = T)
 sync_cmd <- glue::glue('aws s3 sync {base_s3_uri} {AWS_PARQUET_DOWNLOAD_LOCATION} --exclude "*owner.txt*" --exclude "*archive*"')
 system(sync_cmd)
-
-
-# Upload parquet datasets directory tree to Synapse ------------------------
-
-existing_dirs <- synGetChildren(PARQUET_FOLDER) %>% as.list()
-
-if(length(existing_dirs)>0) {
-  for (i in seq_along(existing_dirs)) {
-    synDelete(existing_dirs[[i]]$id)
-  }
-}
 
 # Modify cohort identifier in dir name
 replace_equal_with_underscore <- function(directory_path) {
   new_directory_path <- gsub("=", "_", directory_path)
   if (directory_path != new_directory_path) {
     file.rename(directory_path, new_directory_path)
-    cat("Renamed:", directory_path, "to", new_directory_path, "\n")
+    return(cat("Renamed:", directory_path, "to", new_directory_path, "\n"))
   }
 }
 
-invisible(lapply(list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION), replace_equal_with_underscore))
+junk <- invisible(lapply(list.dirs(AWS_PARQUET_DOWNLOAD_LOCATION), replace_equal_with_underscore))
 
 # Generate manifest of existing files
 SYNAPSE_AUTH_TOKEN <- Sys.getenv('SYNAPSE_AUTH_TOKEN')
