@@ -112,9 +112,11 @@ latest_commit_tree_url <- latest_commit$html_url %>% stringr::str_replace("commi
 # Index each file in Synapse
 if(nrow(synapse_manifest_to_upload) > 0){
   for(file_number in seq_len(nrow(synapse_manifest_to_upload))){
-    tmp <- synapse_manifest_to_upload[file_number, c("path", "parent", "s3_file_key")]
+    tmp <- 
+      synapse_manifest_to_upload[file_number, c("path", "parent", "s3_file_key")]
     
-    absolute_file_path <- tools::file_path_as_absolute(tmp$path)
+    absolute_file_path <- 
+      tools::file_path_as_absolute(tmp$path)
     
     temp_syn_obj <- 
       synapser::synCreateExternalS3FileHandle(
@@ -125,15 +127,16 @@ if(nrow(synapse_manifest_to_upload) > 0){
     
     new_fileName <- stringr::str_replace_all(temp_syn_obj$fileName, ':', '_colon_')
     
-    f <- File(dataFileHandleId = temp_syn_obj$id,
-              parentId = tmp$parent,
-              name = new_fileName)
+    f <- 
+      synapser::File(dataFileHandleId = temp_syn_obj$id,
+                     parentId = tmp$parent,
+                     name = new_fileName)
     
-    f <- synStore(f, 
-                  activityName = "Indexing", 
-                  activityDescription = "Indexing internal parquet datasets",
-                  used = PARQUET_FOLDER, 
-                  executed = latest_commit_tree_url)
-    
+    f <- 
+      synapser::synStore(f, 
+                         activityName = "Indexing", 
+                         activityDescription = "Indexing internal parquet datasets",
+                         used = PARQUET_FOLDER, 
+                         executed = latest_commit_tree_url)
   }
 }
