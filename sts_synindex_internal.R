@@ -105,7 +105,7 @@ if (nrow(synapse_fileview)>0) {
   synapse_manifest_to_upload <- synapse_manifest
 }
 
-# Get script details for SynStore() provenance
+# Get script details for synStore() provenance
 latest_commit <- gh::gh("/repos/:owner/:repo/commits/main", owner = "Sage-Bionetworks", repo = "recover-parquet-internal")
 latest_commit_tree_url <- latest_commit$html_url %>% stringr::str_replace("commit", "tree")
 
@@ -136,7 +136,6 @@ if(nrow(synapse_manifest_to_upload) > 0){
       synapser::synStore(f, 
                          activityName = "Indexing", 
                          activityDescription = "Indexing internal parquet datasets",
-                         used = PARQUET_FOLDER, 
                          executed = latest_commit_tree_url)
   }
 }
